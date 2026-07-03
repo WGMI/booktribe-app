@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Colors - Modern African Literary palette */
+  --color-background: #fbf9f4;
+  --color-surface: #fbf9f4;
+  --color-surface-dim: #dbdad5;
+  --color-surface-bright: #fbf9f4;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f3ee;
+  --color-surface-container: #f0eee9;
+  --color-surface-container-high: #eae8e3;
+  --color-surface-container-highest: #e4e2dd;
+  --color-surface-variant: #e4e2dd;
+  --color-surface-tint: #9b4338;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-on-surface: #1b1c19;
+  --color-on-surface-variant: #554240;
+  --color-on-background: #1b1c19;
+  --color-inverse-surface: #30312e;
+  --color-inverse-on-surface: #f2f1ec;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-outline: #88726f;
+  --color-outline-variant: #dbc1bd;
+
+  --color-primary: #85332a;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #a44a3f;
+  --color-on-primary-container: #ffdcd7;
+  --color-primary-fixed: #ffdad5;
+  --color-primary-fixed-dim: #ffb4a9;
+  --color-on-primary-fixed: #400101;
+  --color-on-primary-fixed-variant: #7c2c23;
+  --color-inverse-primary: #ffb4a9;
+
+  --color-secondary: #3b6934;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #b9eeab;
+  --color-on-secondary-container: #3f6d38;
+  --color-secondary-fixed: #bcf0ae;
+  --color-secondary-fixed-dim: #a1d494;
+  --color-on-secondary-fixed: #002201;
+  --color-on-secondary-fixed-variant: #23501e;
+
+  --color-tertiary: #6c4500;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #8c5b00;
+  --color-on-tertiary-container: #ffdeb7;
+  --color-tertiary-fixed: #ffddb4;
+  --color-tertiary-fixed-dim: #fdba5b;
+  --color-on-tertiary-fixed: #291800;
+  --color-on-tertiary-fixed-variant: #633f00;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Typography */
+  --font-serif: "Libre Caslon Text", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #fbf9f4;
+  color: #1b1c19;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+.hearth-pattern {
+  background-color: #fbf9f4;
+  background-image: radial-gradient(#dbc1bd 0.5px, transparent 0.5px),
+    radial-gradient(#dbc1bd 0.5px, #fbf9f4 0.5px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
 }
