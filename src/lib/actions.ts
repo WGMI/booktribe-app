@@ -168,14 +168,17 @@ export type CoverScanResult =
       query: string;
       via: "isbn" | "text";
     }
-  | { ok: false; error: string };
+  | { ok: false; error: string; notConfigured?: boolean };
 
-export async function extractBookFromCover(imageBase64: string): Promise<CoverScanResult> {
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Not authenticated" };
+type VisionOcr =
+  | { ok: true; annotations: VisionAnnotation[] }
+  | { ok: false; error: string; notConfigured?: boolean };
 
+async function annotateImage(imageBase64: string): Promise<VisionOcr> {
   const apiKey = process.env.GOOGLE_VISION_API_KEY;
-  if (!apiKey) return { ok: false, error: "Cover scanning is not configured" };
+  if (!apiKey) {
+    return { ok: false, error: "Cover scanning is not configured", notConfigured: true };
+  }
 
   // ~1MB server-action body limit upstream; reject anything suspiciously large
   if (imageBase64.length > 900_000) return { ok: false, error: "Image too large" };
@@ -198,7 +201,39 @@ export async function extractBookFromCover(imageBase64: string): Promise<CoverSc
   if (!res.ok) return { ok: false, error: "Text recognition failed" };
 
   const data = await res.json();
-  const annotations: VisionAnnotation[] = data.responses?.[0]?.textAnnotations ?? [];
+  return { ok: true, annotations: data.responses?.[0]?.textAnnotations ?? [] };
+}
+
+/**
+ * Digits-only fallback for when the barcode won't decode (glare, damage):
+ * OCR the frame and look for the ISBN printed next to the bars.
+ */
+export async function extractIsbnFromPhoto(imageBase64: string): Promise<CoverScanResult> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "Not authenticated" };
+
+  const vision = await annotateImage(imageBase64);
+  if (!vision.ok) return vision;
+
+  const fullText = vision.annotations[0]?.description ?? "";
+  const isbn = fullText ? findIsbnInText(fullText) : null;
+  if (!isbn) return { ok: false, error: "No ISBN number found" };
+
+  const results = await searchOpenLibraryByIsbn(isbn);
+  if (results.length === 0) {
+    return { ok: false, error: `No Open Library match for ISBN ${isbn}` };
+  }
+  return { ok: true, results, query: `isbn:${isbn}`, via: "isbn" };
+}
+
+export async function extractBookFromCover(imageBase64: string): Promise<CoverScanResult> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "Not authenticated" };
+
+  const vision = await annotateImage(imageBase64);
+  if (!vision.ok) return vision;
+
+  const annotations = vision.annotations;
   if (annotations.length === 0) {
     return { ok: false, error: "No text found in the photo" };
   }

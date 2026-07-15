@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BarcodeDetector } from "barcode-detector/ponyfill";
-import { searchOpenLibraryByIsbn, extractBookFromCover } from "@/lib/actions";
+import {
+  searchOpenLibraryByIsbn,
+  extractBookFromCover,
+  extractIsbnFromPhoto,
+} from "@/lib/actions";
 
 type OLResult = {
   key: string;
@@ -28,6 +32,13 @@ type Status =
 
 const MAX_EDGE = 1024;
 
+// Printed-number fallback: if the barcode won't decode, OCR a frame for the
+// digits printed next to the bars. Attempts are capped — each one is a
+// billable Vision call.
+const FIRST_NUMBER_READ_MS = 3500;
+const NUMBER_READ_SPACING_MS = 5000;
+const MAX_NUMBER_READS = 3;
+
 /** Downscale to MAX_EDGE and return raw base64 (no data: prefix). */
 function frameToBase64(source: HTMLVideoElement | HTMLImageElement): string | null {
   const srcW = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
@@ -48,6 +59,11 @@ export default function BookScanner({ onResults, onCancel }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const busyRef = useRef(false);
+  const doneRef = useRef(false);
+  const numberReadBusyRef = useRef(false);
+  const numberReadsRef = useRef(0);
+  const nextNumberReadAtRef = useRef(Infinity);
+  const [readingNumber, setReadingNumber] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "starting" });
 
   useEffect(() => {
@@ -74,19 +90,33 @@ export default function BookScanner({ onResults, onCancel }: Props) {
         video.srcObject = stream;
         await video.play();
         setStatus({ kind: "scanning" });
+        nextNumberReadAtRef.current = Date.now() + FIRST_NUMBER_READ_MS;
 
         const detector = new BarcodeDetector({ formats: ["ean_13"] });
         interval = setInterval(async () => {
           const v = videoRef.current;
-          if (!v || v.readyState < 2 || busyRef.current) return;
+          if (!v || v.readyState < 2 || busyRef.current || doneRef.current) return;
           try {
             const barcodes = await detector.detect(v);
             const isbn = barcodes
               .map((b) => b.rawValue)
               .find((raw) => /^97[89]\d{10}$/.test(raw));
-            if (isbn) await handleIsbn(isbn);
+            if (isbn) {
+              await handleIsbn(isbn);
+              return;
+            }
           } catch {
             // detection on a partial frame can throw — keep scanning
+          }
+
+          // Barcode not decoding yet — try reading the printed ISBN digits
+          // in the background while the barcode loop keeps running
+          if (
+            !numberReadBusyRef.current &&
+            numberReadsRef.current < MAX_NUMBER_READS &&
+            Date.now() >= nextNumberReadAtRef.current
+          ) {
+            void tryReadPrintedNumber(v);
           }
         }, 300);
       } catch {
@@ -95,12 +125,13 @@ export default function BookScanner({ onResults, onCancel }: Props) {
     }
 
     async function handleIsbn(isbn: string) {
-      if (busyRef.current) return;
+      if (busyRef.current || doneRef.current) return;
       busyRef.current = true;
       setStatus({ kind: "looking-up", label: "Barcode found — looking up ISBN..." });
       try {
         const results = await searchOpenLibraryByIsbn(isbn);
-        if (results.length > 0) {
+        if (results.length > 0 && !doneRef.current) {
+          doneRef.current = true;
           onResults(results, "barcode");
           return;
         }
@@ -112,6 +143,35 @@ export default function BookScanner({ onResults, onCancel }: Props) {
         setStatus({ kind: "error", message: "Lookup failed. Check your connection." });
       } finally {
         busyRef.current = false;
+      }
+    }
+
+    // Silent background fallback: OCR the frame for the digits printed under
+    // the barcode. Failures just let the barcode loop keep scanning.
+    async function tryReadPrintedNumber(video: HTMLVideoElement) {
+      numberReadBusyRef.current = true;
+      numberReadsRef.current += 1;
+      nextNumberReadAtRef.current = Date.now() + NUMBER_READ_SPACING_MS;
+      setReadingNumber(true);
+
+      try {
+        const base64 = frameToBase64(video);
+        if (!base64) return;
+        const result = await extractIsbnFromPhoto(base64);
+        if (result.ok) {
+          if (!busyRef.current && !doneRef.current) {
+            doneRef.current = true;
+            onResults(result.results, "barcode");
+          }
+        } else if (result.notConfigured) {
+          // Vision isn't set up — stop burning attempts
+          numberReadsRef.current = MAX_NUMBER_READS;
+        }
+      } catch {
+        // network hiccup — the barcode loop is still running
+      } finally {
+        numberReadBusyRef.current = false;
+        setReadingNumber(false);
       }
     }
 
@@ -136,6 +196,7 @@ export default function BookScanner({ onResults, onCancel }: Props) {
     try {
       const result = await extractBookFromCover(base64);
       if (result.ok) {
+        doneRef.current = true;
         onResults(result.results, "cover");
         return;
       }
@@ -201,7 +262,10 @@ export default function BookScanner({ onResults, onCancel }: Props) {
 
       <p className="text-xs text-[#88726f] text-center mt-3 min-h-4">
         {status.kind === "starting" && "Starting camera..."}
-        {status.kind === "scanning" && "Point the camera at the barcode on the back cover"}
+        {status.kind === "scanning" &&
+          (readingNumber
+            ? "Also trying the printed ISBN number..."
+            : "Point the camera at the barcode on the back cover")}
         {status.kind === "error" && <span className="text-[#ba1a1a]">{status.message}</span>}
       </p>
 
