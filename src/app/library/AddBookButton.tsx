@@ -155,6 +155,10 @@ export default function AddBookButton() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError("");
+    if (!form.coverUrl && !form.uploadedCoverUrl) {
+      setSubmitError("Please add a book image before submitting.");
+      return;
+    }
     startTransition(async () => {
       try {
         await addBook({
@@ -357,9 +361,13 @@ export default function AddBookButton() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-[#1b1c19] mb-1">Your Own Photo (fallback)</label>
+                    <label className="block text-sm font-semibold text-[#1b1c19] mb-1">
+                      {form.coverUrl ? "Your Own Photo (optional)" : "Book Photo *"}
+                    </label>
                     <p className="text-xs text-[#88726f] mb-2">
-                      Shown if the cover from Open Library is unavailable, or as the main cover if added manually.
+                      {form.coverUrl
+                        ? "Shown instead of the cover from Open Library, if provided."
+                        : "A photo is required so other members can see the book."}
                     </p>
                     <div className="flex items-center gap-3">
                       {form.uploadedCoverUrl && (
@@ -437,7 +445,7 @@ export default function AddBookButton() {
                 <button
                   type="submit"
                   form="book-form"
-                  disabled={isPending}
+                  disabled={isPending || (!form.coverUrl && !form.uploadedCoverUrl)}
                   className="flex-1 bg-[#85332a] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
                 >
                   {isPending ? "Adding..." : "Add to Library"}

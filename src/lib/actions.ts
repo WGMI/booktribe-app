@@ -21,6 +21,10 @@ export async function addBook(formData: {
   const { userId } = await auth();
   if (!userId) throw new Error("Not authenticated");
 
+  if (!formData.coverUrl && !formData.uploadedCoverUrl) {
+    throw new Error("A book image is required");
+  }
+
   await db.insert(books).values({
     userId,
     title: formData.title,
