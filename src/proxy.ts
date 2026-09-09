@@ -1,15 +1,4 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
-
-// Toggle this off (and delete this middleware block) when the app is ready to launch.
-const COMING_SOON = true;
-
-const isAllowedDuringComingSoon = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/webhooks(.*)",
-]);
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -20,10 +9,6 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (COMING_SOON && !isAllowedDuringComingSoon(request)) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
   if (!isPublicRoute(request)) {
     await auth.protect();
   }

@@ -1,8 +1,22 @@
 "use client";
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/explore", label: "Explore" },
+  { href: "/library", label: "My Library" },
+];
 
 export default function NavBar() {
+  const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  }
+
   return (
     <header className="sticky top-0 z-50 bg-[#fbf9f4]/95 backdrop-blur border-b border-[#dbc1bd] shadow-sm">
       <div className="max-w-[1280px] mx-auto px-5 md:px-16 h-20 flex items-center justify-between">
@@ -13,10 +27,23 @@ export default function NavBar() {
             </div>
             <span className="font-serif font-bold text-xl text-[#85332a] tracking-tight">Booktribe</span>
           </Link>
-          <span className="hidden sm:inline-flex items-center bg-[#b9eeab] text-[#3b6934] px-3 py-1 rounded-full text-xs font-semibold">
-            Coming Soon
-          </span>
         </div>
+
+        <nav className="hidden md:flex items-center gap-8">
+          {NAV_LINKS.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`text-sm font-medium transition-colors ${
+                isActive(href)
+                  ? "text-[#85332a] font-semibold border-b-2 border-[#85332a] pb-1"
+                  : "text-[#554240] hover:text-[#85332a]"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
 
         <div className="flex items-center gap-3">
           <Show when="signed-out">
