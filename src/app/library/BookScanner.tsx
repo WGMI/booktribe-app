@@ -214,6 +214,36 @@ export default function BookScanner({ onResults, onCancel }: Props) {
     scanCover(frameToBase64(video));
   }
 
+  async function captureIsbnPhoto() {
+    if (busyRef.current || doneRef.current) return;
+    const video = videoRef.current;
+    const base64 = video ? frameToBase64(video) : null;
+    if (!base64) {
+      setStatus({ kind: "error", message: "Couldn't capture the photo. Try again." });
+      return;
+    }
+    busyRef.current = true;
+    setStatus({ kind: "looking-up", label: "Reading the barcode from your photo..." });
+    try {
+      const result = await extractIsbnFromPhoto(base64);
+      if (result.ok) {
+        doneRef.current = true;
+        onResults(result.results, "barcode");
+        return;
+      }
+      setStatus({
+        kind: "error",
+        message: result.notConfigured
+          ? "Photo lookup isn't available right now. Try snapping the cover instead."
+          : "Couldn't read a barcode in that photo. Try again or snap the cover instead.",
+      });
+    } catch {
+      setStatus({ kind: "error", message: "Lookup failed. Check your connection." });
+    } finally {
+      busyRef.current = false;
+    }
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -271,13 +301,24 @@ export default function BookScanner({ onResults, onCancel }: Props) {
 
       <div className="mt-4 space-y-2">
         {hasCamera ? (
-          <button
-            onClick={snapCover}
-            disabled={busy || status.kind === "starting"}
-            className="w-full bg-[#3b6934] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
-          >
-            No barcode? Snap the cover
-          </button>
+          <>
+            {status.kind === "scanning" && (
+              <button
+                onClick={captureIsbnPhoto}
+                disabled={busy}
+                className="w-full border-2 border-[#3b6934] text-[#3b6934] py-3 rounded-lg font-semibold text-sm hover:bg-[#3b6934]/10 transition-colors disabled:opacity-60"
+              >
+                Holding steady? Take a photo instead
+              </button>
+            )}
+            <button
+              onClick={snapCover}
+              disabled={busy || status.kind === "starting"}
+              className="w-full bg-[#3b6934] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              No barcode? Snap the cover
+            </button>
+          </>
         ) : (
           <label className="w-full flex items-center justify-center bg-[#3b6934] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity cursor-pointer">
             {busy ? "Reading the cover..." : "Take a photo of the cover"}
