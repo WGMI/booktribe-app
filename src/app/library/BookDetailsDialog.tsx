@@ -6,7 +6,15 @@ import type { books } from "@/lib/schema";
 
 type Book = typeof books.$inferSelect;
 
-export default function BookDetailsDialog({ book, onClose }: { book: Book; onClose: () => void }) {
+export default function BookDetailsDialog({
+  book,
+  images = [],
+  onClose,
+}: {
+  book: Book;
+  images?: string[];
+  onClose: () => void;
+}) {
   const addedOn = new Date(book.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -53,6 +61,24 @@ export default function BookDetailsDialog({ book, onClose }: { book: Book; onClo
               {book.availableForSwap ? "Available for swap" : "Not available"}
             </span>
           </div>
+
+          {images.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-[#88726f] uppercase tracking-wide mb-2">
+                Photos ({images.length})
+              </h3>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {images.map((url) => (
+                  <img
+                    key={url}
+                    src={url}
+                    alt=""
+                    className="w-20 h-28 rounded-lg object-cover shrink-0 border border-[#dbc1bd]"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {book.description && (
             <div>

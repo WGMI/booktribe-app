@@ -2,8 +2,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { books, swapRequests, users } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { books, bookImages, swapRequests, users } from "@/lib/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import AddBookButton from "./AddBookButton";
 import SwapActions from "./SwapActions";
 import BookCard from "./BookCard";
@@ -32,6 +32,21 @@ export default async function LibraryPage() {
       .where(eq(swapRequests.ownerId, userId))
       .orderBy(swapRequests.createdAt),
   ]);
+
+  const imageRows = myBooks.length > 0
+    ? await db
+        .select({ bookId: bookImages.bookId, url: bookImages.url })
+        .from(bookImages)
+        .where(inArray(bookImages.bookId, myBooks.map((b) => b.id)))
+        .orderBy(bookImages.position)
+    : [];
+
+  const imagesByBook = new Map<string, string[]>();
+  for (const row of imageRows) {
+    const list = imagesByBook.get(row.bookId) ?? [];
+    list.push(row.url);
+    imagesByBook.set(row.bookId, list);
+  }
 
   const displayName =
     [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") || "Reader";
@@ -96,7 +111,7 @@ export default async function LibraryPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {myBooks.map((book) => (
-                  <BookCard key={book.id} book={book} />
+                  <BookCard key={book.id} book={book} images={imagesByBook.get(book.id) ?? []} />
                 ))}
               </div>
             )}

@@ -29,13 +29,13 @@ type FormState = {
   isbn: string;
   openLibraryKey: string;
   coverUrl: string;
-  uploadedCoverUrl: string;
+  images: string[];
   publishYear: string;
 };
 
 const BLANK_FORM: FormState = {
   title: "", author: "", genre: "", condition: "good",
-  description: "", isbn: "", openLibraryKey: "", coverUrl: "", uploadedCoverUrl: "", publishYear: "",
+  description: "", isbn: "", openLibraryKey: "", coverUrl: "", images: [], publishYear: "",
 };
 
 type Step = "search" | "scan" | "details";
@@ -97,7 +97,7 @@ export default function AddBookButton() {
       isbn: r.isbn ?? "",
       openLibraryKey: r.key,
       coverUrl: r.coverUrl ?? "",
-      uploadedCoverUrl: "",
+      images: [],
       publishYear: r.publishYear ? String(r.publishYear) : "",
     });
     setStep("details");
@@ -123,28 +123,32 @@ export default function AddBookButton() {
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    if (!file) return;
+    if (files.length === 0) return;
 
     setUploadError("");
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Please choose an image file.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError("Image must be under 5MB.");
-      return;
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        setUploadError("Please choose image files only.");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setUploadError("Each image must be under 5MB.");
+        return;
+      }
     }
 
     setUploadingImage(true);
     try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      setForm((f) => ({ ...f, uploadedCoverUrl: data.url as string }));
+      for (const file of files) {
+        const body = new FormData();
+        body.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Upload failed");
+        setForm((f) => ({ ...f, images: [...f.images, data.url as string] }));
+      }
     } catch {
       setUploadError("Upload failed. Please try again.");
     } finally {
@@ -152,17 +156,27 @@ export default function AddBookButton() {
     }
   }
 
+  function removeImage(url: string) {
+    setForm((f) => ({ ...f, images: f.images.filter((i) => i !== url) }));
+  }
+
+  const missingFields: string[] = [];
+  if (!form.title.trim()) missingFields.push("Title");
+  if (!form.author.trim()) missingFields.push("Author");
+  if (!form.coverUrl && form.images.length === 0) missingFields.push("Book image");
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError("");
-    if (!form.coverUrl && !form.uploadedCoverUrl) {
-      setSubmitError("Please add a book image before submitting.");
+    if (missingFields.length > 0) {
+      setSubmitError(`Please add: ${missingFields.join(", ")}.`);
       return;
     }
     startTransition(async () => {
       try {
         await addBook({
           ...form,
+          uploadedImages: form.images,
           publishYear: form.publishYear ? Number(form.publishYear) : undefined,
         });
         closeModal();
@@ -362,36 +376,45 @@ export default function AddBookButton() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-[#1b1c19] mb-1">
-                      {form.coverUrl ? "Your Own Photo (optional)" : "Book Photo *"}
+                      {form.coverUrl ? "Your Own Photos (optional)" : "Book Photos *"}
                     </label>
                     <p className="text-xs text-[#88726f] mb-2">
                       {form.coverUrl
-                        ? "Shown instead of the cover from Open Library, if provided."
-                        : "A photo is required so other members can see the book."}
+                        ? "Shown instead of the cover from Open Library, if provided. Add as many as you like."
+                        : "At least one photo is required so other members can see the book. Add as many as you like."}
                     </p>
-                    <div className="flex items-center gap-3">
-                      {form.uploadedCoverUrl && (
-                        <img
-                          src={form.uploadedCoverUrl}
-                          alt=""
-                          className="w-10 h-14 rounded object-cover shrink-0 border border-[#dbc1bd]"
-                        />
-                      )}
-                      <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-[#dbc1bd] bg-[#f5f3ee] text-sm text-[#554240] cursor-pointer hover:border-[#85332a] transition-colors">
-                        {uploadingImage
-                          ? "Uploading..."
-                          : form.uploadedCoverUrl
-                          ? "Replace photo"
-                          : "Upload a photo"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          disabled={uploadingImage}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
+                    {form.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {form.images.map((url) => (
+                          <div key={url} className="relative w-14 h-20 shrink-0 group">
+                            <img
+                              src={url}
+                              alt=""
+                              className="w-full h-full rounded object-cover border border-[#dbc1bd]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage(url)}
+                              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#1b1c19] text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label="Remove image"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-[#dbc1bd] bg-[#f5f3ee] text-sm text-[#554240] cursor-pointer hover:border-[#85332a] transition-colors">
+                      {uploadingImage ? "Uploading..." : form.images.length > 0 ? "Add more photos" : "Upload photos"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileChange}
+                        disabled={uploadingImage}
+                        className="hidden"
+                      />
+                    </label>
                     {uploadError && <p className="text-xs text-[#ba1a1a] mt-2">{uploadError}</p>}
                   </div>
                   {/* Hidden OL fields — shown collapsed so user knows data was pulled */}
@@ -442,14 +465,22 @@ export default function AddBookButton() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  form="book-form"
-                  disabled={isPending || (!form.coverUrl && !form.uploadedCoverUrl)}
-                  className="flex-1 bg-[#85332a] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
-                >
-                  {isPending ? "Adding..." : "Add to Library"}
-                </button>
+                <div className="relative flex-1 group">
+                  <button
+                    type="submit"
+                    form="book-form"
+                    disabled={isPending || missingFields.length > 0}
+                    className="w-full bg-[#85332a] text-white py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+                  >
+                    {isPending ? "Adding..." : "Add to Library"}
+                  </button>
+                  {missingFields.length > 0 && (
+                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[220px] bg-[#1b1c19] text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 text-center">
+                      Missing: {missingFields.join(", ")}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-transparent border-t-[#1b1c19]" />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -32,6 +32,14 @@ export const books = pgTable("books", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const bookImages = pgTable("book_images", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }).notNull(),
+  url: text("url").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const swapRequests = pgTable("swap_requests", {
   id: uuid("id").defaultRandom().primaryKey(),
   requesterId: text("requester_id").notNull(),

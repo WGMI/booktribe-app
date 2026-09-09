@@ -8,7 +8,7 @@ import type { books } from "@/lib/schema";
 
 type Book = typeof books.$inferSelect;
 
-export default function BookCard({ book }: { book: Book }) {
+export default function BookCard({ book, images = [] }: { book: Book; images?: string[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -43,7 +43,7 @@ export default function BookCard({ book }: { book: Book }) {
         </div>
       </button>
 
-      {open && <BookDetailsDialog book={book} onClose={() => setOpen(false)} />}
+      {open && <BookDetailsDialog book={book} images={images} onClose={() => setOpen(false)} />}
     </>
   );
 }

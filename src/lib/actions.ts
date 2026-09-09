@@ -2,7 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { db } from "./db";
-import { books, swapRequests, communityMembers, communities } from "./schema";
+import { books, bookImages, swapRequests, communityMembers, communities } from "./schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -15,30 +15,40 @@ export async function addBook(formData: {
   isbn?: string;
   openLibraryKey?: string;
   coverUrl?: string;
-  uploadedCoverUrl?: string;
+  uploadedImages?: string[];
   publishYear?: number;
 }) {
   const { userId } = await auth();
   if (!userId) throw new Error("Not authenticated");
 
-  if (!formData.coverUrl && !formData.uploadedCoverUrl) {
+  const uploadedImages = formData.uploadedImages ?? [];
+  if (!formData.coverUrl && uploadedImages.length === 0) {
     throw new Error("A book image is required");
   }
 
-  await db.insert(books).values({
-    userId,
-    title: formData.title,
-    author: formData.author,
-    genre: formData.genre || null,
-    condition: formData.condition,
-    description: formData.description || null,
-    isbn: formData.isbn || null,
-    openLibraryKey: formData.openLibraryKey || null,
-    coverUrl: formData.coverUrl || null,
-    uploadedCoverUrl: formData.uploadedCoverUrl || null,
-    publishYear: formData.publishYear || null,
-    availableForSwap: true,
-  });
+  const [book] = await db
+    .insert(books)
+    .values({
+      userId,
+      title: formData.title,
+      author: formData.author,
+      genre: formData.genre || null,
+      condition: formData.condition,
+      description: formData.description || null,
+      isbn: formData.isbn || null,
+      openLibraryKey: formData.openLibraryKey || null,
+      coverUrl: formData.coverUrl || null,
+      uploadedCoverUrl: uploadedImages[0] || null,
+      publishYear: formData.publishYear || null,
+      availableForSwap: true,
+    })
+    .returning({ id: books.id });
+
+  if (uploadedImages.length > 0) {
+    await db.insert(bookImages).values(
+      uploadedImages.map((url, position) => ({ bookId: book.id, url, position }))
+    );
+  }
 
   revalidatePath("/library");
 }
